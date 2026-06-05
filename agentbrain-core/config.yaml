@@ -1,0 +1,22 @@
+ollama:
+  host: "http://localhost:11434"
+
+agents:
+  manager:
+    model: "lfm2.5-thinking"
+    temperature: 0.1
+  coder:
+    model: "qwen3.6"
+    temperature: 0.2
+  reviewer:
+    model: "mixtral"
+    temperature: 0.1
+  brainstorm:
+    model: "mixtral"
+    temperature: 0.7
+  researcher:
+    model: "lfm2.5-thinking"
+    temperature: 0.3
+
+memory:
+  host: "http://localhost:8000"

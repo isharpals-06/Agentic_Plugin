@@ -1,0 +1,24 @@
+{
+  "name": "agentbrain-obsidian",
+  "version": "1.0.0",
+  "description": "Local-first multi-agent AI operating system integration for Obsidian",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "rollup -c -w",
+    "build": "rollup -c"
+  },
+  "author": "Isharpal Singh",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-typescript": "^12.3.0",
+    "@types/node": "^20.11.19",
+    "obsidian": "^1.5.0",
+    "rollup": "^4.12.0",
+    "rollup-plugin-typescript2": "^0.36.0",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.3"
+  }
+}

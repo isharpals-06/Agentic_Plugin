@@ -2,6 +2,7 @@ import sys
 import os
 import argparse
 import logging
+import json
 from src.engine.workflow import WorkflowEngine
 
 # Force stdout to use UTF-8 encoding
@@ -38,19 +39,17 @@ def main():
     result = engine.execute_workflow(args.task)
     
     if not result.get("success", False):
-        print(f"Workflow execution failed: {result.get('error', 'Unknown error')}")
+        print(json.dumps({"success": False, "error": result.get('error', 'Unknown error')}), flush=True)
         sys.exit(1)
         
-    print(f"\nMANAGER PLAN:")
-    print(f"Description: {result.get('plan_description')}\n")
-    
-    for step in result.get("history", []):
-        print(f"--- Step {step['step_number']}: {step['agent'].upper()} ---")
-        print(f"Instruction: {step['instruction']}")
-        print(f"Output:\n{step['output']}")
-        print("-" * 60)
-        
-    print("\nWorkflow Execution Completed successfully.")
+    # Print completion JSON block
+    print(json.dumps({
+        "success": True,
+        "type": "completion",
+        "final_output": result.get("final_output"),
+        "plan_description": result.get("plan_description")
+    }), flush=True)
 
 if __name__ == '__main__':
     main()
+

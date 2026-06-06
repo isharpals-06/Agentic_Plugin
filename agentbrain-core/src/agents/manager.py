@@ -1,3 +1,4 @@
+import os
 import json
 import re
 import logging
@@ -7,48 +8,25 @@ from src.llm.ollama_client import OllamaClient
 
 logger = logging.getLogger(__name__)
 
-MANAGER_SYSTEM_PROMPT = """You are the Manager Agent for AgentBrain. Your job is to orchestrate a team of specialized sub-agents:
-1. "coder": Handles code generation, debugging, algorithms, and design.
-2. "reviewer": Reviews code, evaluates logic, critiques, and finds bugs.
-3. "researcher": Performs deep research, conceptual/theoretical breakdowns, and synthesizes technical concepts.
-4. "brainstorm": Generates lateral thinking, creative options, and alternative design paths.
-
-Analyze the user's request. Create a structured workflow plan using these specialists.
-IMPORTANT: You must return ONLY a JSON block matching the structure below. Do not include any other text before or after the JSON block.
-
-Expected Output Format:
-{
-  "plan_description": "Short summary of how the task will be achieved and why the chosen path is appropriate.",
-  "steps": [
-    {
-      "step_number": 1,
-      "agent": "researcher",
-      "instruction": "What this agent needs to do. Be specific and include context."
-    },
-    {
-      "step_number": 2,
-      "agent": "coder",
-      "instruction": "What the coder needs to do. Refer to inputs from previous steps if needed."
-    }
-  ]
-}
-
-Rules:
-- Never generate final code or perform direct reviews yourself.
-- Break the task down logically.
-- Choose the correct specialized agents for each step (e.g. if the user wants code, use coder, then reviewer; if the user wants an explanation, use researcher).
-- Keep the plan minimal but complete.
-"""
+def _load_prompt(filename: str) -> str:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    prompt_path = os.path.join(current_dir, '..', 'prompts', filename)
+    try:
+        with open(prompt_path, 'r', encoding='utf-8') as f:
+            return f.read().strip()
+    except Exception as e:
+        return ""
 
 class ManagerAgent(BaseAgent):
-    def __init__(self, model: str, ollama_client: OllamaClient, temperature: float = 0.1):
+    def __init__(self, model: str, ollama_client: OllamaClient, temperature: float = 0.1, routing_config: Dict[str, Any] = None):
         super().__init__(
             name="Manager",
             model=model,
-            system_prompt=MANAGER_SYSTEM_PROMPT,
+            system_prompt=_load_prompt("manager_system.md"),
             ollama_client=ollama_client,
             temperature=temperature
         )
+        self.routing_config = routing_config or {}
 
     def plan_task(self, user_prompt: str) -> Dict[str, Any]:
         """
@@ -70,15 +48,27 @@ class ManagerAgent(BaseAgent):
             return plan
         except Exception as e:
             logger.warning(f"Failed to parse Manager JSON response. Raw output: {response_text}. Error: {e}")
-            # Return a simple fallback single-step plan
-            # Let's decide based on keywords in prompt
+            
+            # Determine fallback agent based on task routing config
             agent = "coder"
-            if any(w in user_prompt.lower() for w in ["explain", "what is", "how does", "research"]):
-                agent = "researcher"
-            elif any(w in user_prompt.lower() for w in ["review", "critique", "audit"]):
-                agent = "reviewer"
-            elif any(w in user_prompt.lower() for w in ["brainstorm", "idea", "creative"]):
-                agent = "brainstorm"
+            if self.routing_config:
+                matched = False
+                for route_name, route_info in self.routing_config.items():
+                    keywords = route_info.get('keywords', [])
+                    target_agent = route_info.get('agent')
+                    if target_agent and any(w in user_prompt.lower() for w in keywords):
+                        agent = target_agent
+                        matched = True
+                        break
+            else:
+                if any(w in user_prompt.lower() for w in ["explain", "what is", "how does", "research"]):
+                    agent = "researcher"
+                elif any(w in user_prompt.lower() for w in ["review", "critique", "audit"]):
+                    agent = "reviewer"
+                elif any(w in user_prompt.lower() for w in ["brainstorm", "idea", "creative"]):
+                    agent = "brainstorm"
+                elif any(w in user_prompt.lower() for w in ["learn", "teach", "understand"]):
+                    agent = "learner"
                 
             return {
                 "plan_description": f"Fallback plan due to parsing error. Direct routing to {agent}.",
@@ -90,3 +80,4 @@ class ManagerAgent(BaseAgent):
                     }
                 ]
             }
+

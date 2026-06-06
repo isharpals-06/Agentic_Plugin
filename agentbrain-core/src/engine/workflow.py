@@ -1,9 +1,10 @@
 import logging
 import yaml
+import json
 from typing import Dict, Any, List
 from src.llm.ollama_client import OllamaClient
 from src.agents.manager import ManagerAgent
-from src.agents.specialists import CoderAgent, ReviewerAgent, ResearcherAgent, BrainstormAgent
+from src.agents.specialists import CoderAgent, ReviewerAgent, ResearcherAgent, BrainstormAgent, LearnerAgent
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,8 @@ class WorkflowEngine:
         self.manager = ManagerAgent(
             model=agents_cfg.get('manager', {}).get('model', 'lfm2.5-thinking'),
             ollama_client=self.client,
-            temperature=agents_cfg.get('manager', {}).get('temperature', 0.1)
+            temperature=agents_cfg.get('manager', {}).get('temperature', 0.1),
+            routing_config=self.config.get('task_routing', {})
         )
         
         self.specialists = {
@@ -42,6 +44,11 @@ class WorkflowEngine:
                 model=agents_cfg.get('brainstorm', {}).get('model', 'mistral'),
                 ollama_client=self.client,
                 temperature=agents_cfg.get('brainstorm', {}).get('temperature', 0.7)
+            ),
+            "learner": LearnerAgent(
+                model=agents_cfg.get('learner', {}).get('model', 'mistral'),
+                ollama_client=self.client,
+                temperature=agents_cfg.get('learner', {}).get('temperature', 0.2)
             )
         }
 
@@ -77,6 +84,14 @@ class WorkflowEngine:
         steps = plan.get("steps", [])
         plan_desc = plan.get("plan_description", "")
         
+        # Print manager plan as JSON for frontend
+        print(json.dumps({
+            "type": "plan",
+            "description": plan_desc,
+            "steps": steps
+        }), flush=True)
+
+        
         execution_history = []
         context_str = ""
         
@@ -109,6 +124,15 @@ class WorkflowEngine:
                 output = f"Execution failed: {e}"
                 logger.error(f"Error during step {step_num} execution: {e}")
             
+            # Stream JSON output immediately to stdout for frontend parsing
+            step_output = {
+                "step": step_num,
+                "agent": agent_key.upper(),
+                "instruction": instruction,
+                "output": output
+            }
+            print(json.dumps(step_output), flush=True)
+
             # Add to log
             execution_history.append({
                 "step_number": step_num,

@@ -17,6 +17,27 @@ agents:
   researcher:
     model: "lfm2.5-thinking"
     temperature: 0.3
+  learner:
+    model: "mixtral"
+    temperature: 0.2
 
 memory:
   host: "http://localhost:8000"
+
+task_routing:
+  coding:
+    keywords: ['code', 'write', 'implement', 'function', 'class']
+    agent: 'coder'
+  brainstorming:
+    keywords: ['brainstorm', 'idea', 'suggest', 'creative']
+    agent: 'brainstorm'
+  research:
+    keywords: ['research', 'analyze', 'deep', 'theory', 'explain']
+    agent: 'researcher'
+  code_review:
+    keywords: ['review', 'feedback', 'improve', 'optimize']
+    agent: 'reviewer'
+  learning:
+    keywords: ['learn', 'teach', 'understand', 'how does']
+    agent: 'learner'
+

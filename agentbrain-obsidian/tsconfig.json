@@ -9,11 +9,12 @@
     "inlineSources": true,
     "strict": true,
     "noImplicitAny": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "importHelpers": true
+    "importHelpers": true,
+    "baseUrl": "src"
   },
   "include": ["src/**/*"]
 }

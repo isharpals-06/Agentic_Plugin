@@ -98,6 +98,18 @@
     align-self: flex-start;
 }
 
+.agentbrain-message.manager {
+    background: linear-gradient(135deg, rgba(67, 97, 238, 0.08), rgba(123, 44, 191, 0.08));
+    border: 1px solid rgba(67, 97, 238, 0.3);
+    color: var(--text-normal);
+    align-self: flex-start;
+    border-bottom-left-radius: 2px;
+}
+
+.agentbrain-message.manager .agentbrain-message-header {
+    color: #4361ee;
+}
+
 .agentbrain-message-content {
     margin: 0;
     white-space: pre-wrap;

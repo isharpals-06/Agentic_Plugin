@@ -8,17 +8,57 @@ AgentBrain is a **local-first, multi-agent AI operating system** that integrates
 
 AgentBrain is divided into three interconnected, lightweight components:
 
-```mermaid
-graph TD
-    Obsidian[Obsidian App + AgentBrain Plugin] <--> |Semantic Search & Indexing| MemoryService[FastAPI Memory Service]
-    Obsidian --> |Spawns Python Subprocess| Core[AgentBrain Core Engine]
-    Core <--> |API Calls| Ollama[Ollama Local LLM Service]
-    Core <--> |Optional Query| MemoryService
+```
+┌─────────────────────────────────────────────────────────┐
+│                    OBSIDIAN (Main UI)                   │
+│                                                         │
+│  ┌──────────────────────────────────────────────────┐  │
+│  │     AgentBrain Plugin (TypeScript)               │  │
+│  │                                                  │  │
+│  │  ├─ Chat View Component                          │  │
+│  │  ├─ Settings Management (with validation)        │  │
+│  │  ├─ OllamaService (health check + retry)         │  │
+│  │  ├─ MemoryService (vault context injection)      │  │
+│  │  └─ ProcessManager (spawn + lifecycle)           │  │
+│  └──────────────────────────────────────────────────┘  │
+│                         ↓ (stdio)                       │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│           AgentBrain Core (Python Backend)              │
+│                                                         │
+│  ├─ Manager Agent (task analysis + planning)            │
+│  ├─ Coder Agent (qwen3.6)                               │
+│  ├─ Research Agent (lfm2.5-thinking)                    │
+│  ├─ Brainstorm Agent (mixtral)                          │
+│  ├─ Review Agent (mixtral)                              │
+│  ├─ Learner Agent (mixtral)                             │
+│  └─ Ollama Client (hot-swap model management)           │
+└─────────────────────────────────────────────────────────┘
+                         ↓
+┌─────────────────────────────────────────────────────────┐
+│           Ollama (Local Model Server)                   │
+│                                                         │
+│  ├─ mixtral (26GB)       ├─ qwen3.6 (23GB)              │
+│  ├─ lfm2.5-thinking (731MB)                             │
+└─────────────────────────────────────────────────────────┘
+                    (Optional)
+┌─────────────────────────────────────────────────────────┐
+│    AgentBrain Memory (Vector Store & Retrieval)         │
+│                                                         │
+│  ├─ FastAPI Server (port 8000)                          │
+│  ├─ Sentence-Transformers Embeddings                    │
+│  └─ Vault Parsing + Chunking                            │
+└─────────────────────────────────────────────────────────┘
 ```
 
-1. **`agentbrain-core`**: A multi-agent framework powered by Ollama. A **Manager Agent** acts as an orchestrator, breaking tasks down into structured plans and passing instructions sequentially to specialized specialist agents (`coder`, `reviewer`, `researcher`, `brainstorm`).
-2. **`agentbrain-memory`**: A local semantic search microservice built on FastAPI. It parses notes in your Obsidian vault, chunks them, and generates embeddings using `sentence-transformers` (falling back to custom term-frequency keyword matching if necessary) to enable vector similarity search.
-3. **`agentbrain-obsidian`**: An Obsidian desktop plugin providing an interactive chat interface inside your vault sidebar. It automatically queries the memory service to fetch relevant context from your vault and inject it into the prompt before spawning `agentbrain-core` to execute the agent workflow.
+### How It Works
+
+1. **`agentbrain-core`**: A multi-agent framework powered by Ollama. A **Manager Agent** acts as an orchestrator, breaking tasks into structured plans using dynamic prompt templates and config-based keyword routing. The manager coordinates specialized agents (`coder`, `reviewer`, `researcher`, `brainstorm`, `learner`) sequentially, hot-swapping models to conserve VRAM.
+
+2. **`agentbrain-memory`**: A local semantic search microservice built on FastAPI. It parses notes in your Obsidian vault, chunks them, and generates embeddings using `sentence-transformers` (falling back to keyword matching if unavailable) to enable vector similarity search.
+
+3. **`agentbrain-obsidian`**: An Obsidian desktop plugin providing an interactive chat interface. It features modular services (`OllamaService`, `ProcessManager`, `MemoryService`), config validation, structured logging, and configurable timeouts up to 1 hour.
 
 ---
 
@@ -26,13 +66,16 @@ graph TD
 
 ### 1. Ollama Setup
 1. Download and install [Ollama](https://ollama.com/) on your system.
-2. Pull the default models specified in `agentbrain-core/config.yaml` (or edit the yaml file to use your own local models):
+2. Pull the required models:
    ```bash
    ollama pull lfm2.5-thinking
    ollama pull qwen3.6
    ollama pull mixtral
    ```
-3. Keep the Ollama application or service running on `http://localhost:11434`.
+3. Keep the Ollama service running:
+   ```bash
+   ollama serve
+   ```
 
 ---
 
@@ -40,7 +83,7 @@ graph TD
 This microservice processes notes from your vault and maintains a local vector index.
 
 1. Navigate to the `agentbrain-memory` directory.
-2. It is highly recommended to set up a Python virtual environment:
+2. Set up a Python virtual environment (recommended):
    ```bash
    python -m venv venv
    # On Windows:
@@ -68,7 +111,7 @@ The core workflow engine coordinates model inference.
    ```bash
    pip install -r requirements.txt
    ```
-3. Configure your local models and hosts in [config.yaml](file:///C:/Users/ishar/Agentic_Plugin/agentbrain-core/config.yaml).
+3. Configure your local models and hosts in `config.yaml`.
 
 ---
 
@@ -84,36 +127,56 @@ Compile the TypeScript plugin source code to load it in Obsidian.
    ```bash
    npm run build
    ```
-   This generates the necessary plugin bundle files (`main.js` and `styles.css`) in the root of the plugin directory.
-4. Copy the entire `agentbrain-obsidian` folder to your Obsidian vault's plugin directory (usually `<your-vault>/.obsidian/plugins/agentbrain-obsidian`).
-5. Open Obsidian, go to **Settings > Community Plugins**, search for **AgentBrain**, and toggle it **On**.
+4. Copy the `agentbrain-obsidian` folder to your Obsidian vault's plugin directory:
+   - **Windows:** `<your-vault>/.obsidian/plugins/agentbrain-obsidian`
+   - **macOS:** `<your-vault>/.obsidian/plugins/agentbrain-obsidian`
+   - **Linux:** `<your-vault>/.obsidian/plugins/agentbrain-obsidian`
+5. Open Obsidian → **Settings → Community Plugins** → Enable **AgentBrain**.
 
 ---
 
 ## 🚀 How to Use
 
-### Step 1: Configure Obsidian settings
+### Step 1: Configure Plugin Settings
 In Obsidian, open settings and configure the **AgentBrain** plugin:
-* **Python Path / Command**: The command to run python (e.g. `python` or the path to your venv's python executable).
-* **Core Path**: The absolute path to your `agentbrain-core` folder.
-* **Memory Server URL**: `http://localhost:8000`.
-* **Enable Memory Context**: Enable/Disable semantic indexing and retrieval.
 
-### Step 2: Index your Vault
+| Setting | Description | Default |
+|---------|-------------|---------|
+| **Ollama URL** | URL where Ollama is running | `http://localhost:11434` |
+| **Ollama Timeout** | How long to wait for responses (ms) | `30000` |
+| **Python Command** | Command to run Python | `python` |
+| **Core Path** | Absolute path to `agentbrain-core/` | *(must be set)* |
+| **Max Execution Time** | Maximum task execution time (seconds) | `300` |
+| **Enable Memory Context** | Toggle vault context injection | `true` |
+| **Memory Server URL** | URL of the FastAPI memory server | `http://localhost:8000` |
+| **Memory Search Results** | Number of vault results to inject (1-20) | `5` |
+| **Debug Logging** | Verbose console output | `false` |
+
+### Step 2: Verify Ollama Connection
+1. Open the command palette (`Ctrl+P` or `Cmd+P`).
+2. Run: **AgentBrain: Check Ollama Status**.
+3. You should see a notice listing your installed models.
+
+### Step 3: Index your Vault
 Before you can query your notes semantically:
 1. Make sure `agentbrain-memory` FastAPI server is running.
-2. Open the command palette in Obsidian (`Ctrl+P` or `Cmd+P`).
-3. Search for and execute: `AgentBrain: Index Current Vault`.
-4. Once completed, a notification will display the total number of text blocks indexed.
+2. Open the command palette and run: **AgentBrain: Index Current Vault (For Memory)**.
+3. Once completed, a notification will display the total chunks indexed.
 
-### Step 3: Run Workflows in Chat
-1. Click the ribbon bot icon in Obsidian to open the AgentBrain Chat View in the right sidebar.
-2. Type in a request (e.g., `"Write a Python script that calculates Fibonacci sequence and review it"`).
+### Step 4: Run Workflows in Chat
+1. Click the 🤖 ribbon icon to open the AgentBrain Chat View.
+2. Type a request — AgentBrain intelligently routes to the best specialist:
+   - 💻 **Coding** → Qwen3.6
+   - 📚 **Research** → LFM2.5-Thinking
+   - 🧠 **Brainstorming** → Mixtral
+   - ✏️ **Review** → Mixtral
+   - 🎓 **Learning** → Mixtral
 3. The plugin will:
-   * Fetch relevant context from your vault.
-   * Spawn the `agentbrain-core` workflow engine.
-   * Display step-by-step progress as the Manager coordinates the specialized agents.
-   * Stream the outputs of each agent directly inside your chat container.
+   - Check Ollama connectivity (with retry)
+   - Validate configuration
+   - Fetch relevant vault context (if memory is enabled)
+   - Spawn the `agentbrain-core` workflow engine
+   - Display the Manager's plan and each agent's output in the chat
 
 ---
 
@@ -136,8 +199,78 @@ python main.py "Your prompt or instruction here"
 
 ## 📁 Repository Structure
 
-* [agentbrain-core/](file:///C:/Users/ishar/Agentic_Plugin/agentbrain-core): Subprocess executor, agent prompt logic, model engine orchestration, and configuration.
-* [agentbrain-memory/](file:///C:/Users/ishar/Agentic_Plugin/agentbrain-memory): FastAPI service, document/markdown parsers, and custom local vector store implementations.
-* [agentbrain-obsidian/](file:///C:/Users/ishar/Agentic_Plugin/agentbrain-obsidian): TypeScript Obsidian UI plugin source code and settings.
-* [test_ollama.py](file:///C:/Users/ishar/Agentic_Plugin/test_ollama.py): Quick verification script for your local Ollama instance.
-* `AgentBrain_PRD.docx`: Project Requirements Document outlining the product vision.
+```
+Agentic_Plugin/
+├── agentbrain-obsidian/          # Obsidian Plugin (TypeScript)
+│   ├── src/
+│   │   ├── main.ts               # Plugin entry + ChatView + Settings
+│   │   ├── types/
+│   │   │   ├── index.ts          # Core type definitions
+│   │   │   └── agent.ts          # Agent-specific types
+│   │   ├── utils/
+│   │   │   ├── logger.ts         # Structured logging
+│   │   │   ├── validators.ts     # Config & input validation
+│   │   │   └── helpers.ts        # General utilities
+│   │   └── services/
+│   │       ├── OllamaService.ts  # Ollama API client (retry, health)
+│   │       ├── ProcessManager.ts # Python subprocess lifecycle
+│   │       └── MemoryService.ts  # Memory server client
+│   ├── styles.css                # Plugin UI styles
+│   ├── manifest.json             # Obsidian plugin manifest (v1.1.0)
+│   ├── DEVELOPMENT.md            # Developer setup guide
+│   ├── SETUP.md                  # User installation guide
+│   └── TROUBLESHOOTING.md        # Common issues & fixes
+│
+├── agentbrain-core/              # Python Backend (Multi-Agent Engine)
+│   ├── main.py                   # CLI entry point
+│   ├── config.yaml               # Model & routing configuration
+│   ├── requirements.txt
+│   └── src/
+│       ├── agents/               # Agent implementations
+│       │   ├── base.py           # Abstract BaseAgent
+│       │   ├── manager.py        # Manager (orchestration)
+│       │   └── specialists.py    # Coder, Reviewer, Researcher, etc.
+│       ├── engine/
+│       │   └── workflow.py       # Workflow execution engine
+│       ├── llm/
+│       │   └── ollama_client.py  # Ollama API client + model hot-swap
+│       └── prompts/              # System prompt templates (markdown)
+│
+├── agentbrain-memory/            # Vector Store & Retrieval (FastAPI)
+│   ├── main.py                   # FastAPI server entry
+│   ├── requirements.txt
+│   └── src/
+│       ├── parser/
+│       │   └── vault_parser.py   # Markdown chunking & parsing
+│       └── retrieval/
+│           └── vector_store.py   # Embeddings + similarity search
+│
+├── test_ollama.py                # Quick Ollama verification script
+└── README.md
+```
+
+---
+
+## 📋 Model Requirements
+
+| Model | Size | Used By |
+|-------|------|---------|
+| mixtral | ~26 GB | Brainstorm, Review, Learning agents |
+| qwen3.6 | ~23 GB | Coding agent |
+| lfm2.5-thinking | ~731 MB | Manager, Research agents |
+
+> **Note:** AgentBrain hot-swaps models after each agent step to conserve VRAM. Only one model is loaded at a time.
+
+---
+
+## 📚 Additional Documentation
+
+- [SETUP.md](agentbrain-obsidian/SETUP.md) — Step-by-step installation guide
+- [DEVELOPMENT.md](agentbrain-obsidian/DEVELOPMENT.md) — Developer setup & architecture decisions
+- [TROUBLESHOOTING.md](agentbrain-obsidian/TROUBLESHOOTING.md) — Common issues & solutions
+
+---
+
+## 📄 License
+
+MIT
